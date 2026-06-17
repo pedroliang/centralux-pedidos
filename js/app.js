@@ -10,8 +10,25 @@ const App = (() => {
     // ─── Initialize ────────────────────────────────────
     function init() {
         Sheets.init(); // pre-load spreadsheet data
-        renderStats();
-        Report.render(document.getElementById('report-container'));
+        
+        try {
+            FirebaseDB.init();
+            if (FirebaseDB.isEnabled()) {
+                FirebaseDB.startSync((orders) => {
+                    Storage.setOrdersCache(orders);
+                    renderStats();
+                    Report.render(document.getElementById('report-container'));
+                });
+            } else {
+                renderStats();
+                Report.render(document.getElementById('report-container'));
+            }
+        } catch (err) {
+            console.error('[App] Database init failed, using localStorage:', err);
+            renderStats();
+            Report.render(document.getElementById('report-container'));
+        }
+
         bindEvents();
         console.log('[App] Initialized');
     }
@@ -36,6 +53,7 @@ const App = (() => {
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
+                if (link.id === 'btn-open-settings') return; // Do not select Settings as active view page
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
             });
@@ -124,6 +142,14 @@ const App = (() => {
                 openNewOrderModal();
             }
         });
+
+        // Settings events
+        document.getElementById('btn-open-settings').addEventListener('click', (e) => {
+            e.preventDefault();
+            openSettingsModal();
+        });
+        document.getElementById('settings-form').addEventListener('submit', handleSettingsSubmit);
+        document.getElementById('btn-clear-settings').addEventListener('click', handleClearSettings);
     }
 
     // Helper to escape HTML to prevent syntax errors and XSS
@@ -286,6 +312,45 @@ const App = (() => {
         document.getElementById('order-form').reset();
         document.getElementById('photo-preview-container').innerHTML = '';
         document.getElementById('code-autocomplete').classList.remove('show');
+    }
+
+    // ─── Settings Modal ────────────────────────────────
+    function openSettingsModal() {
+        const config = Storage.getFirebaseConfig() || {};
+        document.getElementById('fb-api-key').value = config.apiKey || '';
+        document.getElementById('fb-project-id').value = config.projectId || '';
+        document.getElementById('fb-auth-domain').value = config.authDomain || '';
+        document.getElementById('fb-app-id').value = config.appId || '';
+        document.getElementById('modal-settings').classList.add('active');
+    }
+
+    function handleSettingsSubmit(e) {
+        e.preventDefault();
+        const config = {
+            apiKey: document.getElementById('fb-api-key').value.trim(),
+            projectId: document.getElementById('fb-project-id').value.trim(),
+            authDomain: document.getElementById('fb-auth-domain').value.trim(),
+            appId: document.getElementById('fb-app-id').value.trim()
+        };
+
+        if (!config.apiKey || !config.projectId) {
+            showToast('API Key e Project ID são obrigatórios', 'error');
+            return;
+        }
+
+        Storage.saveFirebaseConfig(config);
+        showToast('Configurações salvas! Conectando à nuvem...', 'success');
+        setTimeout(() => {
+            window.location.reload();
+        }, 1200);
+    }
+
+    function handleClearSettings() {
+        Storage.saveFirebaseConfig(null);
+        showToast('Modo em nuvem desativado. Reiniciando no modo local...', 'info');
+        setTimeout(() => {
+            window.location.reload();
+        }, 1200);
     }
 
     // ─── Vendor Management ─────────────────────────────

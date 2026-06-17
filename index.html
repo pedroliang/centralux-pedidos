@@ -34,6 +34,10 @@
                     <span class="material-symbols-outlined">description</span>
                     <span class="nav-label">Relatório</span>
                 </a>
+                <a href="#" class="nav-link" id="btn-open-settings" data-view="settings">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span class="nav-label">Configurações</span>
+                </a>
             </nav>
 
             <div class="sidebar-footer">
@@ -238,12 +242,58 @@
         </div>
     </div>
 
+    <!-- ═══ Modal: Firebase Settings ═══ -->
+    <div class="modal-overlay" id="modal-settings">
+        <div class="modal" style="max-width:500px;">
+            <div class="modal-header">
+                <h2>Configurações do Banco de Dados</h2>
+                <button class="modal-close">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <form id="settings-form" class="modal-body" style="padding-top:10px;">
+                <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.4;">
+                    Para sincronizar os pedidos em tempo real entre computadores, insira as credenciais do seu projeto Firebase. Deixe em branco para usar o modo de armazenamento local (apenas este PC).
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="fb-api-key">API Key</label>
+                    <input type="text" class="form-input" id="fb-api-key" placeholder="Ex: AIzaSy..." autocomplete="off" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="fb-project-id">Project ID</label>
+                        <input type="text" class="form-input" id="fb-project-id" placeholder="Ex: centralux-pedidos" autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="fb-auth-domain">Auth Domain</label>
+                        <input type="text" class="form-input" id="fb-auth-domain" placeholder="Ex: centralux-pedidos.firebaseapp.com" autocomplete="off" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="fb-app-id">App ID</label>
+                    <input type="text" class="form-input" id="fb-app-id" placeholder="Ex: 1:1234567890:web:abcdef..." autocomplete="off" />
+                </div>
+                
+                <div class="modal-footer" style="padding:15px 0 0;display:flex;gap:10px;">
+                    <button type="button" class="btn-secondary" id="btn-clear-settings" style="flex:1;">Usar Local</button>
+                    <button type="submit" class="btn-primary" style="flex:1;">
+                        <span class="material-symbols-outlined">save</span>
+                        Conectar Nuvem
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- ═══ Scripts ═══ -->
-    <script src="js/storage.js?v=1.0.3"></script>
-    <script src="js/sheets.js?v=1.0.3"></script>
-    <script src="js/cloudinary.js?v=1.0.3"></script>
-    <script src="js/camera.js?v=1.0.3"></script>
-    <script src="js/report.js?v=1.0.3"></script>
-    <script src="js/app.js?v=1.0.3"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="js/storage.js?v=1.0.4"></script>
+    <script src="js/firebase.js?v=1.0.4"></script>
+    <script src="js/sheets.js?v=1.0.4"></script>
+    <script src="js/cloudinary.js?v=1.0.4"></script>
+    <script src="js/camera.js?v=1.0.4"></script>
+    <script src="js/report.js?v=1.0.4"></script>
+    <script src="js/app.js?v=1.0.4"></script>
 </body>
 </html>

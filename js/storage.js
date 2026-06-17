@@ -1,12 +1,14 @@
 /**
  * Storage Module - localStorage CRUD for orders, vendors, and client-vendor mappings
+ * Supports Firebase Firestore integration and fallbacks to localStorage.
  */
 const Storage = (() => {
     const KEYS = {
         ORDERS: 'clx_orders',
         VENDORS: 'clx_vendors',
         CLIENT_VENDOR: 'clx_client_vendor',
-        NEXT_ID: 'clx_next_id'
+        NEXT_ID: 'clx_next_id',
+        FIREBASE_CONFIG: 'clx_firebase_config'
     };
 
     const DEFAULT_VENDORS = [
@@ -14,6 +16,8 @@ const Storage = (() => {
         'LIANG', 'BRUNA', 'MACIEL', 'PEDRO', 'DAYANA',
         'GILBERTO', 'PAULO', 'GABRIELA', 'GIVALDO', 'DAYSE', 'LARISSA'
     ];
+
+    let _ordersCache = null; // Memory cache for Firebase sync
 
     function _get(key, fallback) {
         try {
@@ -28,8 +32,25 @@ const Storage = (() => {
         localStorage.setItem(key, JSON.stringify(value));
     }
 
+    // ─── Firebase Config ──────────────────────────────────
+    function getFirebaseConfig() {
+        return _get(KEYS.FIREBASE_CONFIG, null);
+    }
+
+    function saveFirebaseConfig(config) {
+        _set(KEYS.FIREBASE_CONFIG, config);
+    }
+
+    // ─── Orders Cache ──────────────────────────────────────
+    function setOrdersCache(orders) {
+        _ordersCache = orders;
+    }
+
     // ─── Orders ────────────────────────────────────────────
     function getOrders() {
+        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled() && _ordersCache !== null) {
+            return _ordersCache;
+        }
         return _get(KEYS.ORDERS, []);
     }
 
@@ -43,13 +64,18 @@ const Storage = (() => {
         return id;
     }
 
-    function saveOrder(order) {
-        const orders = getOrders();
+    async function saveOrder(order) {
         order.id = order.id || getNextId();
         order.createdAt = order.createdAt || new Date().toISOString();
         order.updatedAt = new Date().toISOString();
-        orders.unshift(order); // newest first
-        _set(KEYS.ORDERS, orders);
+
+        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled()) {
+            await FirebaseDB.saveOrder(order);
+        } else {
+            const orders = getOrders();
+            orders.unshift(order); // newest first
+            _set(KEYS.ORDERS, orders);
+        }
 
         // Auto-learn client-vendor mapping
         if (order.client && order.vendor) {
@@ -59,25 +85,35 @@ const Storage = (() => {
         return order;
     }
 
-    function updateOrder(id, updates) {
+    async function updateOrder(id, updates) {
         const orders = getOrders();
         const idx = orders.findIndex(o => o.id === id);
         if (idx === -1) return null;
 
-        orders[idx] = { ...orders[idx], ...updates, updatedAt: new Date().toISOString() };
-        _set(KEYS.ORDERS, orders);
+        const merged = { ...orders[idx], ...updates, updatedAt: new Date().toISOString() };
 
-        // Auto-learn mapping on update too
-        if (updates.client && orders[idx].vendor) {
-            setClientVendor(updates.client.toUpperCase().trim(), orders[idx].vendor);
+        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled()) {
+            await FirebaseDB.updateOrder(id, updates);
+        } else {
+            orders[idx] = merged;
+            _set(KEYS.ORDERS, orders);
         }
 
-        return orders[idx];
+        // Auto-learn mapping on update too
+        if (updates.client && merged.vendor) {
+            setClientVendor(updates.client.toUpperCase().trim(), merged.vendor);
+        }
+
+        return merged;
     }
 
-    function deleteOrder(id) {
-        const orders = getOrders().filter(o => o.id !== id);
-        _set(KEYS.ORDERS, orders);
+    async function deleteOrder(id) {
+        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled()) {
+            await FirebaseDB.deleteOrder(id);
+        } else {
+            const orders = getOrders().filter(o => o.id !== id);
+            _set(KEYS.ORDERS, orders);
+        }
     }
 
     // ─── Vendors ───────────────────────────────────────────
@@ -138,6 +174,7 @@ const Storage = (() => {
         getOrders, getOrderById, saveOrder, updateOrder, deleteOrder,
         getVendors, addVendor, removeVendor,
         getClientVendorMap, setClientVendor, getVendorForClient,
-        getStats, DEFAULT_VENDORS
+        getStats, DEFAULT_VENDORS,
+        getFirebaseConfig, saveFirebaseConfig, setOrdersCache
     };
 })();
