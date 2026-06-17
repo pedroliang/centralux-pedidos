@@ -52,26 +52,72 @@ const SyncDB = (() => {
     }
 
     /**
-     * Fetch orders from remote key-value store
+     * Helper to fetch a key from the remote key-value store
+     */
+    async function fetchValue(key) {
+        const url = `https://keyvalue.immanuel.co/api/KeyVal/GetValue/${_appKey}/${key}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`HTTP status ${res.status}`);
+        }
+        let data = await res.json();
+        if (typeof data === 'string') {
+            try {
+                const trimmed = data.trim();
+                if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+                    data = JSON.parse(trimmed);
+                }
+            } catch (e) {
+                console.warn(`[SyncDB] Failed to parse key ${key} as JSON:`, e);
+            }
+        }
+        return data;
+    }
+
+    /**
+     * Helper to save a key to the remote key-value store
+     */
+    async function saveValue(key, value) {
+        const valStr = typeof value === 'string' ? value : JSON.stringify(value);
+        const url = `https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${_appKey}/${key}?value=${encodeURIComponent(valStr)}`;
+        const res = await fetch(url, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+        return true;
+    }
+
+    /**
+     * Fetch orders from remote key-value store using chunking
      */
     async function fetchRemoteOrders() {
         try {
-            const url = `https://keyvalue.immanuel.co/api/KeyVal/GetValue/${_appKey}/${KEY_ORDERS}`;
-            const res = await fetch(url);
-            if (!res.ok) {
-                if (res.status === 404) return [];
-                throw new Error(`HTTP status ${res.status}`);
+            // Check chunk count first
+            const countData = await fetchValue(`${KEY_ORDERS}_chunks_count`);
+            let count = countData ? parseInt(countData, 10) : 0;
+
+            let data;
+            if (count > 0) {
+                // Fetch all chunks in parallel
+                const chunkPromises = [];
+                for (let i = 0; i < count; i++) {
+                    chunkPromises.push(fetchValue(`${KEY_ORDERS}_chunk_${i}`));
+                }
+                const chunks = await Promise.all(chunkPromises);
+                
+                // Verify all chunks fetched successfully
+                if (chunks.some(c => c === null || c === undefined)) {
+                    throw new Error('Some database chunks are missing or corrupted');
+                }
+
+                const fullJsonStr = chunks.join('');
+                data = JSON.parse(fullJsonStr);
+            } else {
+                // Fallback to legacy single key if count is missing/0
+                data = await fetchValue(KEY_ORDERS);
             }
-            let data = await res.json();
+
             _isOnline = true;
             _lastSyncTime = Date.now();
-            if (typeof data === 'string') {
-                try {
-                    data = JSON.parse(data);
-                } catch (e) {
-                    console.error('[SyncDB] Failed to parse double-encoded remote JSON:', e);
-                }
-            }
             return Array.isArray(data) ? data : [];
         } catch (err) {
             console.warn('[SyncDB] Failed to fetch remote orders, using offline mode:', err);
@@ -81,14 +127,23 @@ const SyncDB = (() => {
     }
 
     /**
-     * Save orders to remote key-value store using query string (Method 1)
+     * Save orders to remote key-value store using chunking to bypass URL limits
      */
     async function saveRemoteOrders(orders) {
         try {
             const valStr = JSON.stringify(orders);
-            const url = `https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${_appKey}/${KEY_ORDERS}?value=${encodeURIComponent(valStr)}`;
-            const res = await fetch(url, { method: 'POST' });
-            if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+            const chunkSize = 900;
+            const chunks = [];
+            for (let i = 0; i < valStr.length; i += chunkSize) {
+                chunks.push(valStr.substring(i, i + chunkSize));
+            }
+
+            // Save all chunks in parallel
+            await Promise.all(chunks.map((chunk, idx) => saveValue(`${KEY_ORDERS}_chunk_${idx}`, chunk)));
+
+            // Save chunk count
+            await saveValue(`${KEY_ORDERS}_chunks_count`, chunks.length.toString());
+
             _isOnline = true;
             _lastSyncTime = Date.now();
             return true;
