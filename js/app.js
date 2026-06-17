@@ -67,6 +67,38 @@ const App = (() => {
             debounceTimer = setTimeout(() => handleCodeInput(e.target.value), 300);
         });
 
+        // Click event on autocomplete dropdown (event delegation)
+        const dropdown = document.getElementById('code-autocomplete');
+        dropdown.addEventListener('click', (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item) {
+                const code = item.dataset.code;
+                const desc = item.dataset.desc;
+                selectCodeItem(code, desc);
+            }
+        });
+
+        // On blur, do exact lookup on column A and auto-fill client, but delay closing the dropdown
+        codeInput.addEventListener('blur', async () => {
+            const code = codeInput.value.trim();
+            setTimeout(() => {
+                document.getElementById('code-autocomplete').classList.remove('show');
+            }, 200);
+
+            if (!code) return;
+            const match = await Sheets.findByCode(code);
+            if (match) {
+                document.getElementById('order-client').value = match.description;
+                // Auto-suggest vendor if client is known
+                const vendor = Storage.getVendorForClient(match.description);
+                if (vendor) {
+                    const vendorSelect = document.getElementById('order-vendor');
+                    const option = Array.from(vendorSelect.options).find(o => o.value === vendor);
+                    if (option) vendorSelect.value = vendor;
+                }
+            }
+        });
+
         codeInput.addEventListener('keydown', (e) => {
             handleAutocompleteNav(e, 'code-autocomplete');
         });
@@ -94,14 +126,44 @@ const App = (() => {
         });
     }
 
-    // ─── Order Code Auto-Complete ──────────────────────
+    // Helper to escape HTML to prevent syntax errors and XSS
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // ─── Order Code Auto-Complete (ONLY column A - Cod.) ──────
     async function handleCodeInput(value) {
         const dropdown = document.getElementById('code-autocomplete');
-        if (!value || value.length < 2) {
+        if (!value || value.length < 1) {
             dropdown.classList.remove('show');
             return;
         }
 
+        // Check for exact match first → auto-fill immediately
+        const exactMatch = await Sheets.findByCode(value.trim());
+        if (exactMatch) {
+            document.getElementById('order-client').value = exactMatch.description;
+            dropdown.classList.remove('show');
+            // Auto-suggest vendor if client is known
+            const vendor = Storage.getVendorForClient(exactMatch.description);
+            if (vendor) {
+                const vendorSelect = document.getElementById('order-vendor');
+                const option = Array.from(vendorSelect.options).find(o => o.value === vendor);
+                if (option) {
+                    vendorSelect.value = vendor;
+                    showToast(`Vendedor "${vendor}" selecionado automaticamente`, 'info');
+                }
+            }
+            return;
+        }
+
+        // Partial match: search only by code prefix (column A)
         const results = await Sheets.searchByCode(value);
         if (results.length === 0) {
             dropdown.classList.remove('show');
@@ -110,10 +172,9 @@ const App = (() => {
 
         dropdown.innerHTML = results.map((item, i) => `
             <div class="autocomplete-item ${i === 0 ? 'highlighted' : ''}"
-                 data-code="${item.code}" data-desc="${item.description}"
-                 onclick="App.selectCodeItem('${item.code}', '${item.description.replace(/'/g, "\\'")}')">
-                <span class="ac-code">${item.code}</span>
-                <span class="ac-desc">${item.description}</span>
+                 data-code="${escapeHtml(item.code)}" data-desc="${escapeHtml(item.description)}"> 
+                <span class="ac-code">${escapeHtml(item.code)}</span>
+                <span class="ac-desc">${escapeHtml(item.description)}</span>
             </div>
         `).join('');
         dropdown.classList.add('show');
@@ -468,7 +529,8 @@ const App = (() => {
 
     function viewPhoto(url) {
         const modal = document.getElementById('modal-photo');
-        document.getElementById('photo-viewer-img').src = url;
+        const optimizedUrl = typeof CloudinaryUploader !== 'undefined' ? CloudinaryUploader.getOptimized(url, 800) : url;
+        document.getElementById('photo-viewer-img').src = optimizedUrl;
         modal.classList.add('active');
     }
 

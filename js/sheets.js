@@ -94,15 +94,15 @@ const Sheets = (() => {
     }
 
     /**
-     * Search products by partial code match
-     * @returns {Array} matching products
+     * Search products by code prefix match (column A only)
+     * @returns {Array} matching products whose code STARTS with the input
      */
     async function searchByCode(partial) {
         if (!partial) return [];
         const data = await fetchData();
-        const normalized = partial.toString().trim().toLowerCase();
+        const normalized = partial.toString().trim();
         return data.filter(item =>
-            item.code.toLowerCase().includes(normalized)
+            item.code.startsWith(normalized)
         ).slice(0, 10);
     }
 
