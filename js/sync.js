@@ -62,9 +62,16 @@ const SyncDB = (() => {
                 if (res.status === 404) return [];
                 throw new Error(`HTTP status ${res.status}`);
             }
-            const data = await res.json();
+            let data = await res.json();
             _isOnline = true;
             _lastSyncTime = Date.now();
+            if (typeof data === 'string') {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {
+                    console.error('[SyncDB] Failed to parse double-encoded remote JSON:', e);
+                }
+            }
             return Array.isArray(data) ? data : [];
         } catch (err) {
             console.warn('[SyncDB] Failed to fetch remote orders, using offline mode:', err);
