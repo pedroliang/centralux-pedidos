@@ -27,8 +27,6 @@ const CloudinaryUploader = (() => {
         formData.append('upload_preset', UPLOAD_PRESET);
         formData.append('folder', folder);
 
-        // Add transformations for optimization
-        formData.append('transformation', 'q_auto,f_auto');
 
         try {
             const response = await fetch(UPLOAD_URL, {
