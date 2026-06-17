@@ -242,58 +242,69 @@
         </div>
     </div>
 
-    <!-- ═══ Modal: Firebase Settings ═══ -->
+    <!-- ═══ Modal: Sync Settings ═══ -->
     <div class="modal-overlay" id="modal-settings">
         <div class="modal" style="max-width:500px;">
             <div class="modal-header">
-                <h2>Configurações do Banco de Dados</h2>
+                <h2>Sincronização em Nuvem</h2>
                 <button class="modal-close">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <form id="settings-form" class="modal-body" style="padding-top:10px;">
-                <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.4;">
-                    Para sincronizar os pedidos em tempo real entre computadores, insira as credenciais do seu projeto Firebase. Deixe em branco para usar o modo de armazenamento local (apenas este PC).
+            <div class="modal-body" style="padding-top:10px;">
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.4;">
+                    Seus pedidos são sincronizados automaticamente em nuvem entre todos os computadores que usam a mesma planilha.
                 </p>
-                <div class="form-group">
-                    <label class="form-label" for="fb-api-key">API Key</label>
-                    <input type="text" class="form-input" id="fb-api-key" placeholder="Ex: AIzaSy..." autocomplete="off" />
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label" for="fb-project-id">Project ID</label>
-                        <input type="text" class="form-input" id="fb-project-id" placeholder="Ex: centralux-pedidos" autocomplete="off" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="fb-auth-domain">Auth Domain</label>
-                        <input type="text" class="form-input" id="fb-auth-domain" placeholder="Ex: centralux-pedidos.firebaseapp.com" autocomplete="off" />
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="fb-app-id">App ID</label>
-                    <input type="text" class="form-input" id="fb-app-id" placeholder="Ex: 1:1234567890:web:abcdef..." autocomplete="off" />
-                </div>
                 
-                <div class="modal-footer" style="padding:15px 0 0;display:flex;gap:10px;">
-                    <button type="button" class="btn-secondary" id="btn-clear-settings" style="flex:1;">Usar Local</button>
-                    <button type="submit" class="btn-primary" style="flex:1;">
-                        <span class="material-symbols-outlined">save</span>
-                        Conectar Nuvem
-                    </button>
+                <!-- Status Area -->
+                <div class="settings-status-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:20px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <span style="font-weight:600;font-size:0.9rem;">Status da Conexão</span>
+                        <div id="sync-status-indicator" style="display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600;">
+                            <span class="status-dot" id="sync-dot" style="width:10px;height:10px;border-radius:50%;background:#808080;display:inline-block;"></span>
+                            <span id="sync-status-text">Carregando...</span>
+                        </div>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;">
+                        <strong>Chave Nuvem:</strong> <code id="sync-cloud-key" style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--accent);">--</code>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-secondary);">
+                        <strong>Última Sincronização:</strong> <span id="sync-last-time">Nunca</span>
+                    </div>
                 </div>
-            </form>
+
+                <!-- Action Buttons -->
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <button type="button" class="btn-primary" id="btn-force-sync" style="width:100%;justify-content:center;">
+                        <span class="material-symbols-outlined">sync</span>
+                        Sincronizar Agora
+                    </button>
+                    
+                    <div style="border-top:1px solid rgba(255,255,255,0.08);margin:8px 0;"></div>
+                    
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" class="btn-secondary" id="btn-export-backup" style="flex:1;justify-content:center;font-size:0.85rem;">
+                            <span class="material-symbols-outlined">download</span>
+                            Exportar Backup
+                        </button>
+                        <button type="button" class="btn-secondary" id="btn-trigger-import" style="flex:1;justify-content:center;font-size:0.85rem;">
+                            <span class="material-symbols-outlined">upload</span>
+                            Importar Backup
+                        </button>
+                    </div>
+                    <input type="file" id="import-backup-file" accept=".json" style="display:none;" />
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- ═══ Scripts ═══ -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="js/storage.js?v=1.0.4"></script>
-    <script src="js/firebase.js?v=1.0.4"></script>
-    <script src="js/sheets.js?v=1.0.4"></script>
-    <script src="js/cloudinary.js?v=1.0.4"></script>
-    <script src="js/camera.js?v=1.0.4"></script>
-    <script src="js/report.js?v=1.0.4"></script>
-    <script src="js/app.js?v=1.0.4"></script>
+    <script src="js/sheets.js?v=1.0.5"></script>
+    <script src="js/sync.js?v=1.0.5"></script>
+    <script src="js/storage.js?v=1.0.5"></script>
+    <script src="js/cloudinary.js?v=1.0.5"></script>
+    <script src="js/camera.js?v=1.0.5"></script>
+    <script src="js/report.js?v=1.0.5"></script>
+    <script src="js/app.js?v=1.0.5"></script>
 </body>
 </html>

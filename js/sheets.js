@@ -129,5 +129,5 @@ const Sheets = (() => {
         fetchData().catch(() => {});
     }
 
-    return { fetchData, findByCode, searchByCode, init };
+    return { fetchData, findByCode, searchByCode, init, SPREADSHEET_ID };
 })();

@@ -12,12 +12,13 @@ const App = (() => {
         Sheets.init(); // pre-load spreadsheet data
         
         try {
-            FirebaseDB.init();
-            if (FirebaseDB.isEnabled()) {
-                FirebaseDB.startSync((orders) => {
+            SyncDB.init();
+            if (SyncDB.isEnabled()) {
+                SyncDB.startSync((orders) => {
                     Storage.setOrdersCache(orders);
                     renderStats();
                     Report.render(document.getElementById('report-container'));
+                    updateSyncUI();
                 });
             } else {
                 renderStats();
@@ -148,8 +149,12 @@ const App = (() => {
             e.preventDefault();
             openSettingsModal();
         });
-        document.getElementById('settings-form').addEventListener('submit', handleSettingsSubmit);
-        document.getElementById('btn-clear-settings').addEventListener('click', handleClearSettings);
+        document.getElementById('btn-force-sync').addEventListener('click', handleForceSync);
+        document.getElementById('btn-export-backup').addEventListener('click', handleExportBackup);
+        document.getElementById('btn-trigger-import').addEventListener('click', () => {
+            document.getElementById('import-backup-file').click();
+        });
+        document.getElementById('import-backup-file').addEventListener('change', handleImportBackup);
     }
 
     // Helper to escape HTML to prevent syntax errors and XSS
@@ -314,43 +319,122 @@ const App = (() => {
         document.getElementById('code-autocomplete').classList.remove('show');
     }
 
-    // ─── Settings Modal ────────────────────────────────
+    // ─── Settings Modal & Backup ───────────────────────
+    function updateSyncUI() {
+        const dot = document.getElementById('sync-dot');
+        const text = document.getElementById('sync-status-text');
+        const keyEl = document.getElementById('sync-cloud-key');
+        const timeEl = document.getElementById('sync-last-time');
+
+        if (!dot || !text || !keyEl || !timeEl) return;
+
+        keyEl.textContent = SyncDB.getAppKey();
+
+        if (SyncDB.isOnline()) {
+            dot.style.background = '#4caf50'; // Green
+            text.textContent = 'Sincronizado';
+        } else {
+            dot.style.background = '#ff9800'; // Orange
+            text.textContent = 'Modo Offline';
+        }
+
+        const lastSync = SyncDB.getLastSyncTime();
+        if (lastSync > 0) {
+            timeEl.textContent = new Date(lastSync).toLocaleTimeString('pt-BR');
+        } else {
+            timeEl.textContent = 'Nunca';
+        }
+    }
+
     function openSettingsModal() {
-        const config = Storage.getFirebaseConfig() || {};
-        document.getElementById('fb-api-key').value = config.apiKey || '';
-        document.getElementById('fb-project-id').value = config.projectId || '';
-        document.getElementById('fb-auth-domain').value = config.authDomain || '';
-        document.getElementById('fb-app-id').value = config.appId || '';
+        updateSyncUI();
         document.getElementById('modal-settings').classList.add('active');
     }
 
-    function handleSettingsSubmit(e) {
-        e.preventDefault();
-        const config = {
-            apiKey: document.getElementById('fb-api-key').value.trim(),
-            projectId: document.getElementById('fb-project-id').value.trim(),
-            authDomain: document.getElementById('fb-auth-domain').value.trim(),
-            appId: document.getElementById('fb-app-id').value.trim()
-        };
-
-        if (!config.apiKey || !config.projectId) {
-            showToast('API Key e Project ID são obrigatórios', 'error');
-            return;
+    async function handleForceSync() {
+        const btn = document.getElementById('btn-force-sync');
+        btn.disabled = true;
+        showToast('Sincronizando com a nuvem...', 'info');
+        try {
+            await SyncDB.forceSync();
+            showToast('Sincronização concluída!', 'success');
+            updateSyncUI();
+        } catch (err) {
+            showToast('Erro ao sincronizar: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
         }
-
-        Storage.saveFirebaseConfig(config);
-        showToast('Configurações salvas! Conectando à nuvem...', 'success');
-        setTimeout(() => {
-            window.location.reload();
-        }, 1200);
     }
 
-    function handleClearSettings() {
-        Storage.saveFirebaseConfig(null);
-        showToast('Modo em nuvem desativado. Reiniciando no modo local...', 'info');
-        setTimeout(() => {
-            window.location.reload();
-        }, 1200);
+    function handleExportBackup() {
+        const orders = localStorage.getItem('clx_orders') || '[]';
+        const blob = new Blob([orders], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backup_pedidos_centralux_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Backup exportado com sucesso!', 'success');
+    }
+
+    function handleImportBackup(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const imported = JSON.parse(evt.target.result);
+                if (!Array.isArray(imported)) {
+                    throw new Error('O arquivo de backup deve ser uma lista de pedidos.');
+                }
+
+                // Get current raw local orders
+                let localRaw = [];
+                try {
+                    const data = localStorage.getItem('clx_orders');
+                    localRaw = data ? JSON.parse(data) : [];
+                } catch {}
+
+                // Merge imported into local using LWW
+                const map = new Map();
+                localRaw.forEach(o => map.set(o.id, o));
+                imported.forEach(imp => {
+                    const existing = map.get(imp.id);
+                    if (!existing) {
+                        map.set(imp.id, imp);
+                    } else {
+                        const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+                        const impTime = new Date(imp.updatedAt || imp.createdAt || 0).getTime();
+                        if (impTime > existingTime) {
+                            map.set(imp.id, imp);
+                        }
+                    }
+                });
+
+                const merged = Array.from(map.values()).sort((a, b) => b.id - a.id);
+                localStorage.setItem('clx_orders', JSON.stringify(merged));
+
+                showToast('Importação local concluída! Enviando para nuvem...', 'success');
+
+                // Trigger sync immediately to send imported items to cloud
+                if (SyncDB.isEnabled()) {
+                    await SyncDB.forceSync();
+                } else {
+                    renderStats();
+                    Report.render(document.getElementById('report-container'));
+                }
+
+                closeAllModals();
+            } catch (err) {
+                showToast('Erro ao importar backup: ' + err.message, 'error');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
     }
 
     // ─── Vendor Management ─────────────────────────────

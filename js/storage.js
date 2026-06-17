@@ -48,10 +48,13 @@ const Storage = (() => {
 
     // ─── Orders ────────────────────────────────────────────
     function getOrders() {
-        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled() && _ordersCache !== null) {
-            return _ordersCache;
+        let orders = [];
+        if (typeof SyncDB !== 'undefined' && SyncDB.isEnabled() && _ordersCache !== null) {
+            orders = _ordersCache;
+        } else {
+            orders = _get(KEYS.ORDERS, []);
         }
-        return _get(KEYS.ORDERS, []);
+        return orders.filter(o => !o.deleted);
     }
 
     function getOrderById(id) {
@@ -69,10 +72,10 @@ const Storage = (() => {
         order.createdAt = order.createdAt || new Date().toISOString();
         order.updatedAt = new Date().toISOString();
 
-        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled()) {
-            await FirebaseDB.saveOrder(order);
+        if (typeof SyncDB !== 'undefined' && SyncDB.isEnabled()) {
+            await SyncDB.saveOrder(order);
         } else {
-            const orders = getOrders();
+            const orders = _get(KEYS.ORDERS, []);
             orders.unshift(order); // newest first
             _set(KEYS.ORDERS, orders);
         }
@@ -86,18 +89,20 @@ const Storage = (() => {
     }
 
     async function updateOrder(id, updates) {
-        const orders = getOrders();
-        const idx = orders.findIndex(o => o.id === id);
+        if (typeof SyncDB !== 'undefined' && SyncDB.isEnabled()) {
+            await SyncDB.updateOrder(id, updates);
+            const orders = getOrders();
+            const order = orders.find(o => o.id === id);
+            return order ? { ...order, ...updates } : null;
+        }
+
+        const rawOrders = _get(KEYS.ORDERS, []);
+        const idx = rawOrders.findIndex(o => o.id === id);
         if (idx === -1) return null;
 
-        const merged = { ...orders[idx], ...updates, updatedAt: new Date().toISOString() };
-
-        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled()) {
-            await FirebaseDB.updateOrder(id, updates);
-        } else {
-            orders[idx] = merged;
-            _set(KEYS.ORDERS, orders);
-        }
+        const merged = { ...rawOrders[idx], ...updates, updatedAt: new Date().toISOString() };
+        rawOrders[idx] = merged;
+        _set(KEYS.ORDERS, rawOrders);
 
         // Auto-learn mapping on update too
         if (updates.client && merged.vendor) {
@@ -108,11 +113,16 @@ const Storage = (() => {
     }
 
     async function deleteOrder(id) {
-        if (typeof FirebaseDB !== 'undefined' && FirebaseDB.isEnabled()) {
-            await FirebaseDB.deleteOrder(id);
+        if (typeof SyncDB !== 'undefined' && SyncDB.isEnabled()) {
+            await SyncDB.deleteOrder(id);
         } else {
-            const orders = getOrders().filter(o => o.id !== id);
-            _set(KEYS.ORDERS, orders);
+            const rawOrders = _get(KEYS.ORDERS, []);
+            const idx = rawOrders.findIndex(o => o.id === id);
+            if (idx !== -1) {
+                rawOrders[idx].deleted = true;
+                rawOrders[idx].updatedAt = new Date().toISOString();
+                _set(KEYS.ORDERS, rawOrders);
+            }
         }
     }
 
@@ -175,6 +185,6 @@ const Storage = (() => {
         getVendors, addVendor, removeVendor,
         getClientVendorMap, setClientVendor, getVendorForClient,
         getStats, DEFAULT_VENDORS,
-        getFirebaseConfig, saveFirebaseConfig, setOrdersCache
+        setOrdersCache
     };
 })();
