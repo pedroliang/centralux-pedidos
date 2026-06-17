@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CentraLux | Controle de Pedidos</title>
+    <meta name="description" content="Sistema de controle de pedidos CentraLux - Cadastro, rastreamento e relatórios de pedidos com captura de assinaturas." />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>" />
+</head>
+<body>
+    <!-- ═══ Toast Container ═══ -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">
+                    <span class="material-symbols-outlined">inventory_2</span>
+                </div>
+                <div class="brand-text">
+                    <h1>CentraLux</h1>
+                    <span>Pedidos</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-link active" data-view="dashboard">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span class="nav-label">Painel</span>
+                </a>
+                <a href="#" class="nav-link" data-view="report">
+                    <span class="material-symbols-outlined">description</span>
+                    <span class="nav-label">Relatório</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="btn-new-order" id="btn-new-order">
+                    <span class="material-symbols-outlined">add</span>
+                    <span class="btn-new-text">Novo Pedido</span>
+                </button>
+                <button class="btn-toggle-sidebar" id="btn-toggle-sidebar" title="Recolher menu">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ═══ Main Content ═══ -->
+        <main class="main-content">
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-total">
+                        <span class="material-symbols-outlined">receipt_long</span>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total Pedidos</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-pendente">
+                        <span class="material-symbols-outlined">schedule</span>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-pendente">0</div>
+                        <div class="stat-label">Pendentes</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-separando">
+                        <span class="material-symbols-outlined">inventory_2</span>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-separando">0</div>
+                        <div class="stat-label">Separando</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-concluido">
+                        <span class="material-symbols-outlined">check_circle</span>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-concluido">0</div>
+                        <div class="stat-label">Concluídos</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Container -->
+            <div class="report-container" id="report-container">
+                <!-- Report rendered dynamically by Report.render() -->
+            </div>
+        </main>
+    </div>
+
+    <!-- ═══ Modal: New/Edit Order ═══ -->
+    <div class="modal-overlay" id="modal-order">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Novo Pedido</h2>
+                <button class="modal-close">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <form id="order-form" class="modal-body">
+                <!-- Order Code -->
+                <div class="form-group autocomplete-wrapper">
+                    <label class="form-label" for="order-code">Cód. do Pedido</label>
+                    <input type="text" class="form-input" id="order-code" placeholder="Ex: 14288" autocomplete="off" required />
+                    <div class="autocomplete-dropdown" id="code-autocomplete"></div>
+                </div>
+
+                <!-- Client -->
+                <div class="form-group">
+                    <label class="form-label" for="order-client">Cliente</label>
+                    <input type="text" class="form-input" id="order-client" placeholder="Digite ou selecione o cliente..." required />
+                </div>
+
+                <!-- Vendor -->
+                <div class="form-group">
+                    <label class="form-label" for="order-vendor">Vendedor</label>
+                    <select class="form-select" id="order-vendor" required>
+                        <option value="">Selecione o vendedor</option>
+                    </select>
+                    <div class="add-vendor-row">
+                        <input type="text" class="form-input" id="new-vendor-name" placeholder="Novo vendedor..." style="padding:8px 12px;font-size:0.8rem;" />
+                        <button type="button" class="btn-add-vendor" id="btn-add-vendor">+ Adicionar</button>
+                    </div>
+                </div>
+
+                <!-- Delivery + Priority Row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-checkbox">
+                            <input type="checkbox" id="order-delivery" />
+                            <span>É de Entrega 🚚</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="order-priority">Prioridade</label>
+                        <select class="form-select" id="order-priority">
+                            <option value="normal">Normal</option>
+                            <option value="urgente">Urgente</option>
+                            <option value="baixa">Baixa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Date -->
+                <div class="form-group">
+                    <label class="form-label" for="order-date">Data do Pedido</label>
+                    <input type="date" class="form-input" id="order-date" required />
+                </div>
+
+                <!-- Photo -->
+                <div class="form-group">
+                    <label class="form-label">Foto do Pedido (Comprovante/Assinatura)</label>
+                    <input type="file" id="photo-file" accept="image/*" class="form-input" style="padding:8px;" />
+                    <button type="button" class="btn-secondary btn-camera" id="btn-camera" style="margin-top:8px;">
+                        <span class="material-symbols-outlined">photo_camera</span>
+                        Usar Câmera
+                    </button>
+                    <div id="photo-preview-container"></div>
+                </div>
+
+                <!-- Submit -->
+                <div class="modal-footer" style="padding:0;">
+                    <button type="submit" class="btn-primary" id="btn-submit-order">
+                        <span class="material-symbols-outlined">save</span>
+                        <span id="btn-submit-text">Salvar Pedido</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══ Modal: Camera ═══ -->
+    <div class="modal-overlay" id="modal-camera">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header">
+                <h2>Capturar Foto</h2>
+                <button class="modal-close">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="camera-container">
+                    <video id="camera-video" autoplay playsinline muted></video>
+                </div>
+                <img id="camera-captured" class="camera-preview" style="display:none;border-radius:10px;width:100%;margin-top:12px;" alt="Foto capturada" />
+                <div class="camera-actions">
+                    <button type="button" class="btn-primary" id="btn-capture">
+                        <span class="material-symbols-outlined">camera</span>
+                        Capturar
+                    </button>
+                    <button type="button" class="btn-secondary" id="btn-retake" style="display:none;">
+                        <span class="material-symbols-outlined">refresh</span>
+                        Tirar Outra
+                    </button>
+                    <button type="button" class="btn-primary" id="btn-confirm-photo" style="display:none;">
+                        <span class="material-symbols-outlined">check</span>
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Modal: Photo Viewer ═══ -->
+    <div class="modal-overlay" id="modal-photo">
+        <div class="modal photo-viewer" style="max-width:800px;background:transparent;border:none;box-shadow:none;">
+            <div style="position:relative;">
+                <button class="modal-close" style="position:absolute;top:10px;right:10px;z-index:10;background:rgba(0,0,0,0.6);">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+                <img id="photo-viewer-img" src="" alt="Foto do pedido" style="width:100%;border-radius:14px;" />
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Modal: Confirm Delete ═══ -->
+    <div class="modal-overlay" id="modal-confirm">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-body">
+                <div class="confirm-dialog">
+                    <span class="material-symbols-outlined">warning</span>
+                    <h3>Excluir Pedido?</h3>
+                    <p>Esta ação não pode ser desfeita. O pedido será removido permanentemente.</p>
+                    <div class="confirm-actions">
+                        <button class="btn-secondary" id="btn-confirm-no">Cancelar</button>
+                        <button class="btn-primary btn-danger" id="btn-confirm-yes" style="background:var(--accent-red);box-shadow:none;">Excluir</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Scripts ═══ -->
+    <script src="js/storage.js"></script>
+    <script src="js/sheets.js"></script>
+    <script src="js/cloudinary.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/report.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
