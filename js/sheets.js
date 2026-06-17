@@ -4,8 +4,8 @@
  */
 const Sheets = (() => {
     const SPREADSHEET_ID = '1fRqUo8vH4awjCwV12U0fhR2bdBSRGFUVMlU8PozUsoQ';
-    const SHEET_NAME = 'relatorio de saida';
-    const CSV_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const GID = '776747946';
+    const CSV_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID}`;
 
     let _cache = null;
     let _lastFetch = 0;
@@ -88,9 +88,16 @@ const Sheets = (() => {
      */
     async function findByCode(code) {
         if (!code) return null;
-        const data = await fetchData();
         const normalized = code.toString().trim();
-        return data.find(item => item.code === normalized) || null;
+        let data = await fetchData();
+        let match = data.find(item => item.code === normalized);
+
+        // If not found in cache and last fetch was > 15s ago, try force refresh
+        if (!match && (Date.now() - _lastFetch) > 15000) {
+            data = await fetchData(true);
+            match = data.find(item => item.code === normalized);
+        }
+        return match || null;
     }
 
     /**
@@ -99,11 +106,20 @@ const Sheets = (() => {
      */
     async function searchByCode(partial) {
         if (!partial) return [];
-        const data = await fetchData();
         const normalized = partial.toString().trim();
-        return data.filter(item =>
+        let data = await fetchData();
+        let results = data.filter(item =>
             item.code.startsWith(normalized)
-        ).slice(0, 10);
+        );
+
+        // If no results and last fetch was > 15s ago, try force refresh
+        if (results.length === 0 && (Date.now() - _lastFetch) > 15000) {
+            data = await fetchData(true);
+            results = data.filter(item =>
+                item.code.startsWith(normalized)
+            );
+        }
+        return results.slice(0, 10);
     }
 
     /**
