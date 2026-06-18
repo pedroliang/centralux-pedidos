@@ -55,8 +55,9 @@ const SyncDB = (() => {
      * Helper to fetch a key from the remote key-value store
      */
     async function fetchValue(key) {
-        const url = `https://keyvalue.immanuel.co/api/KeyVal/GetValue/${_appKey}/${key}`;
-        const res = await fetch(url);
+        // Use a cache buster query parameter to guarantee no caching by the browser or proxies
+        const url = `https://keyvalue.immanuel.co/api/KeyVal/GetValue/${_appKey}/${key}?_t=${Date.now()}`;
+        const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) {
             if (res.status === 404) return null;
             throw new Error(`HTTP status ${res.status}`);
